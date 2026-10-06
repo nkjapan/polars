@@ -373,12 +373,27 @@ jobs:
           name: wheel-${{ matrix.package }}-${{ matrix.job_config }}
           path: dist/*.whl
 
-  # Full Python test suite, with the polars-iceberg plugin from its main (released) branch.
+  polars-iceberg-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Get polars-iceberg version
+        id: version
+        uses: ./.github/actions/polars-iceberg-version
+
+  # Full Python test suite, with the polars-iceberg plugin from the git tag of the version required
+  # in pyproject.toml.
   test-python:
+    needs: [polars-iceberg-version]
     uses: ./.github/workflows/test-python.yml
     with:
       sha: ${{ inputs.sha }}
-      polars-iceberg-ref: main
+      polars-iceberg-ref: ${{ needs.polars-iceberg-version.outputs.version }}
 
   publish-to-pypi:
     needs: [base-package, create-sdist, build-wheels, test-python]

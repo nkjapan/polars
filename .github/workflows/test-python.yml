@@ -18,16 +18,16 @@ on:
       - docs/source/src/python/**
       - py-polars/**
       - .github/workflows/test-python.yml
-  # Called by the release workflow, which tests against the polars-iceberg main branch.
+  # Called by the release workflow, which tests against the polars-iceberg release tag.
   workflow_call:
     inputs:
       sha:
         description: Commit SHA of Polars to test
         type: string
       polars-iceberg-ref:
-        description: Branch of polars-iceberg to test with
+        description: Branch or tag of polars-iceberg to test with
         type: string
-        default: main
+        default: dev
 
 concurrency:
   # Not `github.workflow`, which is the caller's name when called from another workflow.

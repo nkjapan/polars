@@ -5,7 +5,7 @@ description: >
 
 inputs:
   ref:
-    description: Branch of polars-iceberg to clone
+    description: Branch or tag of polars-iceberg to clone
     default: dev
 
 runs:
