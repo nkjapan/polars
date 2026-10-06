@@ -376,7 +376,7 @@ jobs:
   polars-iceberg-version:
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -386,14 +386,14 @@ jobs:
         id: version
         uses: ./.github/actions/polars-iceberg-version
 
-  # Full Python test suite, with the polars-iceberg plugin from the git tag (`py-<version>`) of the
-  # version required in pyproject.toml.
+  # Full Python test suite, with the polars-iceberg plugin installed from PyPI at the version
+  # required in pyproject.toml.
   test-python:
     needs: [polars-iceberg-version]
     uses: ./.github/workflows/test-python.yml
     with:
       sha: ${{ inputs.sha }}
-      polars-iceberg-ref: ${{ needs.polars-iceberg-version.outputs.tag }}
+      polars-iceberg-version: ${{ needs.polars-iceberg-version.outputs.version }}
 
   publish-to-pypi:
     needs: [base-package, create-sdist, build-wheels, test-python]
