@@ -75,7 +75,7 @@ fsspec = ["fsspec"]
 deltalake = ["deltalake >= 1.0.0, != 1.5.*"]
 iceberg = ["pyiceberg >= 0.12.0"]
 # Native Iceberg scan planning plugin. The release workflows read this version: the
-# `release-polars-iceberg` workflow releases polars-iceberg from its git tag `<version>`, and
+# `release-polars-iceberg` workflow releases polars-iceberg from its git tag `py-<version>`, and
 # `release-python` runs the test suite against that tag.
 polars_iceberg = ["polars-iceberg >= 0.1.0"]
 

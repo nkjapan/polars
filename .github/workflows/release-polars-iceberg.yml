@@ -4,7 +4,7 @@ name: Release polars-iceberg
 #
 # The version is the `polars-iceberg >= <version>` requirement in the `polars_iceberg` optional
 # dependencies of py-polars/pyproject.toml, and the plugin is built from the polars-iceberg git tag
-# `<version>`, cloned to `crates/polars-iceberg` (a workspace member) of this Polars checkout. The
+# `py-<version>`, cloned to `crates/polars-iceberg` (a workspace member) of this Polars checkout. The
 # plugin is an abi3 wheel, so one wheel per target covers every supported Python version.
 
 on:
@@ -41,6 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -53,27 +54,28 @@ jobs:
       # `git clone -b` also accepts a branch, so make sure the release is built from a tag.
       - name: Check polars-iceberg tag exists
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          if ! git ls-remote --exit-code --tags https://github.com/pola-rs/polars-iceberg "refs/tags/$VERSION"; then
-            echo "::error::polars-iceberg has no tag $VERSION"
+          if ! git ls-remote --exit-code --tags https://github.com/pola-rs/polars-iceberg "refs/tags/$TAG"; then
+            echo "::error::polars-iceberg has no tag $TAG"
             exit 1
           fi
 
       - name: Clone polars-iceberg
         uses: ./.github/actions/clone-polars-iceberg
         with:
-          ref: ${{ steps.version.outputs.version }}
+          ref: ${{ steps.version.outputs.tag }}
 
       # The package version is taken from Cargo.toml by maturin.
       - name: Check polars-iceberg Cargo.toml version matches tag
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           CARGO_VERSION=$(python3 -c 'import tomllib; print(tomllib.load(open("crates/polars-iceberg/Cargo.toml", "rb"))["package"]["version"])')
           CARGO_VERSION=$(echo "$CARGO_VERSION" | sed -e 's/-alpha\./a/' -e 's/-beta\./b/' -e 's/-rc\./rc/')
           if [[ "$VERSION" != "$CARGO_VERSION" ]]; then
-            echo "::error::polars-iceberg tag $VERSION has Cargo.toml version $CARGO_VERSION"
+            echo "::error::polars-iceberg tag $TAG has Cargo.toml version $CARGO_VERSION, expected $VERSION"
             exit 1
           fi
 
@@ -88,7 +90,7 @@ jobs:
       - name: Clone polars-iceberg
         uses: ./.github/actions/clone-polars-iceberg
         with:
-          ref: ${{ needs.version.outputs.version }}
+          ref: ${{ needs.version.outputs.tag }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -154,7 +156,7 @@ jobs:
       - name: Clone polars-iceberg
         uses: ./.github/actions/clone-polars-iceberg
         with:
-          ref: ${{ needs.version.outputs.version }}
+          ref: ${{ needs.version.outputs.tag }}
 
       - name: Set up Python
         uses: actions/setup-python@v6

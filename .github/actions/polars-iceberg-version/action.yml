@@ -1,13 +1,17 @@
 name: polars-iceberg version
 description: >
   Read the polars-iceberg version from the `polars-iceberg >= <version>` requirement in the
-  `polars_iceberg` optional dependencies of py-polars/pyproject.toml. That version is also the
-  polars-iceberg git tag to release from and to test against. Requires a checkout of Polars.
+  `polars_iceberg` optional dependencies of py-polars/pyproject.toml, and the corresponding
+  polars-iceberg git tag `py-<version>` to release from and to test against. Requires a checkout of
+  Polars.
 
 outputs:
   version:
-    description: polars-iceberg version (and git tag)
+    description: polars-iceberg version
     value: ${{ steps.version.outputs.version }}
+  tag:
+    description: polars-iceberg git tag of the version (`py-<version>`)
+    value: ${{ steps.version.outputs.tag }}
 
 runs:
   using: composite
@@ -32,5 +36,6 @@ runs:
         print(versions[0])
         EOF
         )
-        echo "polars-iceberg version: $VERSION"
+        echo "polars-iceberg version: $VERSION (tag py-$VERSION)"
         echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "tag=py-$VERSION" >> "$GITHUB_OUTPUT"
