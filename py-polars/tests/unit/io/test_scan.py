@@ -1279,10 +1279,7 @@ def corrupt_compressed_csv() -> bytes:
 
 @pytest.fixture(scope="session")
 def corrupt_compressed_ndjson() -> bytes:
-    # The decompressor is part of the line-batch provider which only stops once
-    # processing noticed that it doesn't need anymore data. This can take a
-    # bit. Tested with debug/release and calm/stressed machine.
-    return corrupt_compressed_impl(b'{"line_val": 45}\n', int(100e6))
+    return corrupt_compressed_impl(b'{"line_val": 45}\n', int(2e6))
 
 
 @pytest.mark.parametrize("schema", [{"line_val": pl.String}, None])
@@ -1303,16 +1300,22 @@ def test_scan_csv_streaming_decompression(
     assert_frame_equal(df, pl.DataFrame(expected))
 
 
-@pytest.mark.slow
 @pytest.mark.parametrize("schema", [{"line_val": pl.Int64}, None])
+@pytest.mark.parametrize("n_threads", [1, 100])
+@pytest.mark.parametrize("offset", [0, 4096])
 def test_scan_ndjson_streaming_decompression(
-    corrupt_compressed_ndjson: bytes, schema: Any
+    corrupt_compressed_ndjson: bytes,
+    schema: Any,
+    n_threads: int,
+    offset: int,
+    plmonkeypatch: PlMonkeyPatch,
 ) -> None:
+    plmonkeypatch.setenv("POLARS_MAX_THREADS", str(n_threads))
     slice_count = 11
 
     df = (
         pl.scan_ndjson(io.BytesIO(corrupt_compressed_ndjson), schema=schema)
-        .slice(0, slice_count)
+        .slice(offset, slice_count)
         .collect(engine="streaming")
     )
 
@@ -1320,6 +1323,49 @@ def test_scan_ndjson_streaming_decompression(
         pl.Series("line_val", [45] * slice_count, dtype=pl.Int64),
     ]
     assert_frame_equal(df, pl.DataFrame(expected))
+
+
+@pytest.mark.parametrize("n_rows", [None, 125_000])
+def test_scan_ndjson_streaming_decompression_error(
+    corrupt_compressed_ndjson: bytes, n_rows: int | None
+) -> None:
+    with pytest.raises(OSError, match="corrupt deflate stream"):
+        pl.scan_ndjson(
+            corrupt_compressed_ndjson,
+            schema={"line_val": pl.Int64},
+            n_rows=n_rows,
+        ).collect(engine="streaming")
+
+
+@pytest.mark.parametrize("format_name", ["ndjson", "lines"])
+@pytest.mark.parametrize("compressed", [False, True])
+@pytest.mark.parametrize("slice_count", [0, 1, 3, 9])
+def test_scan_line_based_slice_batch_row_count(
+    format_name: str,
+    compressed: bool,
+    slice_count: int,
+    plmonkeypatch: PlMonkeyPatch,
+) -> None:
+    plmonkeypatch.setenv("POLARS_FORCE_NDJSON_READ_SIZE", "8")
+    data = b'\n \t\r\n{"a":0}\n\n{"a":1}\n \r\n{"a":2}'
+    expected = (
+        pl.DataFrame({"a": [0, 1, 2]})
+        if format_name == "ndjson"
+        else pl.DataFrame(
+            {"line": ["", " \t", '{"a":0}', "", '{"a":1}', " ", '{"a":2}']}
+        )
+    )
+    if compressed:
+        data = zlib.compress(data)
+
+    df = (
+        getattr(pl, f"scan_{format_name}")(
+            data, row_index_name="index", row_index_offset=7
+        )
+        .head(slice_count)
+        .collect(engine="streaming")
+    )
+    assert_frame_equal(df, expected.with_row_index(offset=7).head(slice_count))
 
 
 def test_scan_file_uri_hostname_component() -> None:

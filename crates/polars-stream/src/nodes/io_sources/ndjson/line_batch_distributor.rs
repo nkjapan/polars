@@ -18,6 +18,8 @@ pub(super) struct LineBatchDistributor {
     pub(super) reader: ReaderSource,
     pub(super) reverse: bool,
     pub(super) row_skipper: RowSkipper,
+    pub(super) n_rows_to_read: Option<usize>,
+    pub(super) count_rows_fn: fn(&[u8]) -> usize,
     pub(super) line_batch_distribute_tx: distributor_channel::Sender<LineBatch>,
     pub(super) compression: Option<SupportedCompression>,
     pub(super) uncompressed_file_size_hint: Option<usize>,
@@ -43,6 +45,7 @@ impl LineBatchDistributor {
 
         let reader = ByteSourceReader::try_new(self.reader, self.compression)?;
         let mut line_batch_tx = self.line_batch_distribute_tx;
+        let mut n_rows_to_read = self.n_rows_to_read;
         let use_prefetch_l2 = true;
 
         let mut producer = LineBatchProducer::new(
@@ -55,7 +58,11 @@ impl LineBatchDistributor {
         )?;
 
         while let Some(batch) = producer.next_batch()? {
-            if line_batch_tx.send(batch).await.is_err() {
+            if let Some(n_rows_to_read) = n_rows_to_read.as_mut() {
+                *n_rows_to_read = n_rows_to_read.saturating_sub((self.count_rows_fn)(&batch.bytes));
+            }
+
+            if line_batch_tx.send(batch).await.is_err() || n_rows_to_read == Some(0) {
                 break;
             }
         }
@@ -71,6 +78,8 @@ impl LineBatchDistributor {
             reader: reader_source,
             reverse,
             row_skipper,
+            mut n_rows_to_read,
+            count_rows_fn,
             line_batch_distribute_tx: mut line_batch_tx,
             compression,
             uncompressed_file_size_hint,
@@ -97,8 +106,15 @@ impl LineBatchDistributor {
                 )?;
 
                 while let Some(batch) = producer.next_batch()? {
+                    if let Some(n_rows_to_read) = n_rows_to_read.as_mut() {
+                        *n_rows_to_read =
+                            n_rows_to_read.saturating_sub(count_rows_fn(&batch.bytes));
+                    }
+
                     // Effectively, this is `blocking_send`.
-                    if ASYNC.block_on(line_batch_tx.send(batch)).is_err() {
+                    if ASYNC.block_on(line_batch_tx.send(batch)).is_err()
+                        || n_rows_to_read == Some(0)
+                    {
                         break;
                     }
                 }

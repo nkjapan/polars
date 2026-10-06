@@ -244,6 +244,12 @@ impl FileReader for NDJsonFileReader {
             || (row_position_on_end_tx.is_some()
                 && matches!(pre_slice, Some(Slice::Negative { .. })));
 
+        // Bound decompression before the linearizer waits for all pipelines.
+        let n_rows_to_read = match pre_slice.as_ref() {
+            Some(Slice::Positive { len, .. }) if !needs_total_row_count => Some(*len),
+            _ => None,
+        };
+
         if verbose {
             eprintln!(
                 "[NDJsonFileReader]: \
@@ -503,6 +509,8 @@ impl FileReader for NDJsonFileReader {
                 reader: reader_source,
                 reverse: is_negative_slice,
                 row_skipper,
+                n_rows_to_read,
+                count_rows_fn: self.count_rows_fn,
                 line_batch_distribute_tx,
                 compression,
                 uncompressed_file_size_hint,
