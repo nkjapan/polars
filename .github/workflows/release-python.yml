@@ -373,8 +373,15 @@ jobs:
           name: wheel-${{ matrix.package }}-${{ matrix.job_config }}
           path: dist/*.whl
 
+  # Full Python test suite, with the polars-iceberg plugin from its main (released) branch.
+  test-python:
+    uses: ./.github/workflows/test-python.yml
+    with:
+      sha: ${{ inputs.sha }}
+      polars-iceberg-ref: main
+
   publish-to-pypi:
-    needs: [base-package, create-sdist, build-wheels]
+    needs: [base-package, create-sdist, build-wheels, test-python]
     environment:
       name: release-python
       url: https://pypi.org/project/polars
