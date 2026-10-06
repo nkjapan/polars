@@ -225,7 +225,9 @@ def test_iceberg_plugin_io_error(
 
 
 def test_iceberg_plugin_panic_is_error(
-    metadata_path: str, plmonkeypatch: PlMonkeyPatch
+    metadata_path: str,
+    plmonkeypatch: PlMonkeyPatch,
+    capfd: pytest.CaptureFixture[str],
 ) -> None:
     plmonkeypatch.setenv("POLARS_ICEBERG_PLUGIN_TESTING_FAIL", "panic")
     with pytest.raises(
@@ -233,6 +235,8 @@ def test_iceberg_plugin_panic_is_error(
         match=r"polars_iceberg panicked: testing panic requested",
     ):
         pl.scan_iceberg(metadata_path).collect()
+
+    capfd.readouterr()
 
 
 def test_iceberg_plugin_selects_newest_shared_id(
